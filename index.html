@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bluewave City Driver - Like The Picture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body{font-family:Arial;text-align:center;background:#0f172a;color:white;margin:0;padding:8px}
+  .box{background:white;color:black;padding:10px;border-radius:20px;max-width:430px;margin:auto}
+  .hud{display:flex;justify-content:space-between;background:#facc15;padding:8px;border-radius:10px;font-weight:bold}
+  button{padding:13px 16px;margin:4px;border:none;border-radius:12px;background:#2563eb;color:white;font-size:16px;font-weight:bold}
+  button.green{background:#16a34a} button.orange{background:#f97316}
+  canvas{width:100%;max-width:400px;border-radius:15px;border:3px solid #1e293b;background:#64748b}
+  .controls button{width:68px;height:55px;font-size:22px;background:#0ea5e9}
+  .speed{font-size:22px;font-weight:bold;color:#dc2626}
+</style>
+</head>
+<body>
+<h2>🏁 Bluewave City Driver</h2>
+<div class="box">
+  <div class="hud"><span>🏆 <span id="pos">2nd</span></span><span>🪙 <span id="coins">10</span></span><span>DAY <span id="days">1</span>/3</span></div>
+  <p id="msg">Drive to the 🏁 FINISH line! Collect 🪙</p>
+  <p><span class="speed">Speed: <span id="speed">0</span> km/h</span> | Lap: <span id="lap">1</span>/3 | Score: <span id="score">0</span></p>
+  <button onclick="startFree()">FREE DRIVE</button>
+  <button id="raceBtn" class="green" onclick="joinRace()">🏁 JOIN RACE - 1 COIN</button>
+  <button onclick="simulateDay()">+ Next Day</button>
+  <br><br>
+  <canvas id="game" width="400" height="520"></canvas>
+  <br>
+  <div class="controls">
+    <button ontouchstart="press('left')" onmousedown="press('left')">◀</button>
+    <button ontouchstart="press('up')" onmousedown="press('up')">▲ GAS</button>
+    <button ontouchstart="press('down')" onmousedown="press('down')">▼ BRAKE</button>
+    <button ontouchstart="press('right')" onmousedown="press('right')">▶</button>
+  </div>
+  <p>Use ▲ ▼ ◀ ▶ buttons OR keyboard Arrow Keys</p>
+  <button class="orange" onclick="finishRace()">🏆 CROSS FINISH - CLAIM WIN</button>
+  <p>Win Reward: <b>5 Coins</b> if you paid more than 1 time</p>
+</div>
+
+<script>
+let coins=10,days=1,totalPaid=0,score=0,lap=1,inRace=false;
+let player={x:180,y:420,speed:0,angle:0};
+let coin={x:180,y:150};
+let rivals=[{x:90,y:80,c:"red"},{x:260,y:140,c:"yellow"}];
+let keys={};
+let canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+
+function drawCar(x,y,color,label,isPlayer){
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle=color; ctx.beginPath(); ctx.roundRect(-22,-32,44,64,10); ctx.fill();
+  ctx.fillStyle="#bae6fd"; ctx.fillRect(-16,-10,32,22);
+  ctx.fillStyle="#1e293b"; ctx.fillRect(-26,-22,8,14); ctx.fillRect(18,-22,8,14); ctx.fillRect(-26,10,8,14); ctx.fillRect(18,10,8,14);
+  ctx.fillStyle="white"; ctx.font="bold 11px Arial"; ctx.fillText(label,-14,28);
+  ctx.fillStyle="yellow"; ctx.fillRect(-18,-32,8,5); ctx.fillRect(10,-32,8,5);
+  ctx.restore();
+}
+function draw(){
+  ctx.clearRect(0,0,400,520);
+  // City background - like picture
+  ctx.fillStyle="#86c5ff"; ctx.fillRect(0,0,400,520);
+  // Buildings left/right
+  let colors=["#f59e0b","#ec4899","#8b5cf6","#10b981","#ef4444"];
+  for(let i=0;i<6;i++){
+    ctx.fillStyle=colors[i%5]; ctx.fillRect(2, i*85, 58, 70);
+    ctx.fillStyle="white"; ctx.fillRect(10,i*85+10,12,12); ctx.fillRect(35,i*85+10,12,12); ctx.fillRect(10,i*85+35,12,12);
+    ctx.fillStyle=colors[(i+2)%5]; ctx.fillRect(340, i*85, 58, 70);
+    ctx.fillStyle="white"; ctx.fillRect(348,i*85+10,12,12); ctx.fillRect(373,i*85+10,12,12);
+  }
+  // Road
+  ctx.fillStyle="#334155"; ctx.fillRect(65,0,270,520);
+  ctx.fillStyle="white";
+  for(let i=0;i<520;i+=45) ctx.fillRect(196,i,7,22);
+  ctx.fillStyle="#facc15"; ctx.fillRect(65,0,5,520); ctx.fillRect(330,0,5,520);
+  // Finish line - checkered like picture
+  for(let x=0;x<10;x++) for(let y=0;y<2;y++){
+    ctx.fillStyle=(x+y)%2==0?"white":"black"; ctx.fillRect(65+x*27, 30+y*10, 27,10);
+  }
+  ctx.fillStyle="black"; ctx.font="bold 13px Arial"; ctx.fillText("FINISH",160,22);
+  // Coin
+  ctx.fillStyle="gold"; ctx.beginPath(); ctx.arc(coin.x,coin.y,14,0,2*Math.PI); ctx.fill();
+  ctx.fillStyle="black"; ctx.font="bold 16px Arial"; ctx.fillText("🪙",coin.x-9,coin.y+6);
+  // Rivals
+  if(inRace) rivals.forEach(r=>drawCar(r.x,r.y,r.c,"RIVAL",false));
+  // Player - blue car like picture
+  drawCar(player.x,player.y,"#2563eb","YOU",true);
+}
+function updateHUD(){
+  document.getElementById("coins").innerText=coins;
+  document.getElementById("days").innerText=days;
+  document.getElementById("score").innerText=score;
+  document.getElementById("lap").innerText=lap;
+  document.getElementById("speed").innerText=Math.round(Math.abs(player.speed)*10);
+  document.getElementById("pos").innerText=inRace?"1st":"-";
+  draw();
+}
+function press(dir){
+  if(dir=='up') player.speed-=1.2;
+  if(dir=='down') player.speed+=0.8;
+  if(dir=='left') player.x-=18;
+  if(dir=='right') player.x+=18;
+  checkCoin(); updateHUD();
+}
+function checkCoin(){
+  if(Math.abs(player.x-coin.x)<40 && Math.abs(player.y-coin.y)<40){
+    coins++; score++; coin.x=90+Math.random()*220; coin.y=60+Math.random()*300;
+    document.getElementById("msg").innerText="Nice! +1 coin! 🪙 Total: "+coins;
+  }
+}
+function loop(){
+  // Keyboard driving - smooth like real game
+  if(keys["ArrowUp"]||keys["w"]) player.speed-=0.4;
+  if(keys["ArrowDown"]||keys["s"]) player.speed+=0.3;
+  if(keys["ArrowLeft"]||keys["a"]) player.x-=4+Math.abs(player.speed);
+  if(keys["ArrowRight"]||keys["d"]) player.x+=4+Math.abs(player.speed);
+  player.y+=player.speed;
+  if(player.speed>0) player.speed-=0.05; if(player.speed<0) player.speed+=0.05;
+  if(player.x<75) player.x=75; if(player.x>325) player.x=325;
+  if(player.y<50){ player.y=420; lap++; if(lap>3){ lap=3; document.getElementById("msg").innerText="Lap 3 done! Click FINISH to claim win!"; } }
+  if(player.y>470) player.y=470;
+  // Rivals move slowly
+  if(inRace){ rivals.forEach(r=>{ r.y+=1.5; if(r.y>520) r.y=40; }); }
+  checkCoin(); updateHUD();
+  requestAnimationFrame(loop);
+}
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+function startFree(){ inRace=false; lap=1; document.getElementById("msg").innerText="Free Drive! Use arrows to drive!"; updateHUD(); }
+function joinRace(){
+  if(days<3){ alert("Locked! Need Day 3. You have Day "+days); return; }
+  if(coins<1){ alert("Need 1 coin!"); return; }
+  coins--; totalPaid++; inRace=true; lap=1; player.y=420;
+  document.getElementById("msg").innerText="Race Started! You paid 1 coin! Drive UP to Finish!";
+  updateHUD();
+}
+function finishRace(){
+  if(!inRace){ alert("Join race first!"); return; }
+  let reward=totalPaid>1?5:2; coins+=reward; inRace=false;
+  document.getElementById("msg").innerText="YOU WIN! +"+reward+" coins!";
+  updateHUD(); alert("YOU WIN! +"+reward+" coins!");
+}
+function simulateDay(){ days++; if(days>3) days=3; document.getElementById("msg").innerText="Day "+days+"! Race unlocks Day 3."; updateHUD(); }
+updateHUD(); loop();
+</script>
+</body>
+                                  </html>
